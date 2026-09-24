@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bunny Training 🐰
 
-## Getting Started
+A private daily-workout app for one person. Pick gym or home, how long you have
+and what you want to work on; an AI trainer writes the session, you tick the
+exercises off, and finishing one unlocks a mystery box.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Next.js 16 (App Router) + Tailwind 4
+- Supabase Postgres (free tier)
+- OpenAI for generating and revising workouts
+- Deployed on Vercel
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Database.** In the Supabase SQL editor run `supabase/schema.sql`, then
+   `supabase/seed-phrases.sql`.
+2. **Environment.** Copy `.env.example` to `.env.local` and fill it in.
+   `SUPABASE_SERVICE_ROLE_KEY` is under Project Settings → API.
+3. **Run it.**
+   ```
+   npm install
+   npm run dev
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How access works
 
-## Learn More
+There are no user accounts. `APP_PASSCODE` unlocks the app and the server sets
+a signed, httpOnly cookie that lasts 90 days.
 
-To learn more about Next.js, take a look at the following resources:
+Supabase is reached **only** from server code using the service-role key. Every
+table has row level security enabled with no policies, so the database is
+unreachable from the browser even if a key leaked. Never import `lib/db.ts`
+from a Client Component.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Adding your own encouragement phrases
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Insert more rows into `phrases` — one sentence per row. The mystery box avoids
+the last 15 that were used before repeating.

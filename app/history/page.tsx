@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
+import DeletableCard from "@/components/DeletableCard";
 import { formatDay } from "@/lib/date";
 import { listWorkouts } from "@/lib/workouts";
 import { FOCUS_LABELS, LOCATION_LABELS } from "@/lib/types";
@@ -14,9 +15,16 @@ export default async function HistoryPage() {
     <main className="flex flex-1 flex-col">
       <AppHeader />
       <h1 className="text-3xl font-bold text-bunny-700">Your workouts</h1>
-      <p className="mb-5 mt-1 text-sm text-ink-soft">
-        {completed} finished out of {workouts.length}
-      </p>
+      <div className="mb-5 mt-1">
+        <p className="text-sm text-ink-soft">
+          {completed} finished out of {workouts.length}
+        </p>
+        {workouts.length > 0 && (
+          <p className="mt-1 text-xs text-bunny-400">
+            Press and hold a workout to delete it
+          </p>
+        )}
+      </div>
 
       {workouts.length === 0 ? (
         <div className="card text-center text-ink-soft">
@@ -26,6 +34,7 @@ export default async function HistoryPage() {
         <ol className="flex flex-col gap-3">
           {workouts.map((workout) => (
             <li key={workout.id}>
+              <DeletableCard workoutId={workout.id}>
               <Link href={`/workout/${workout.id}`} className="card block">
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="font-bold text-bunny-700">{workout.title}</h2>
@@ -41,6 +50,7 @@ export default async function HistoryPage() {
                   · {FOCUS_LABELS[workout.focus]}
                 </p>
               </Link>
+              </DeletableCard>
             </li>
           ))}
         </ol>

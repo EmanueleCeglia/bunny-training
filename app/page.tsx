@@ -1,5 +1,6 @@
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
+import DeletableCard from "@/components/DeletableCard";
 import NewWorkoutForm from "@/components/NewWorkoutForm";
 import { formatDay, todayISO } from "@/lib/date";
 import { getTodayWorkout } from "@/lib/workouts";
@@ -22,6 +23,7 @@ export default async function HomePage() {
 
       {today ? (
         <div className="flex flex-col gap-3">
+          <DeletableCard workoutId={today.id}>
           <Link href={`/workout/${today.id}`} className="card block">
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-xl font-bold text-bunny-700">{today.title}</h2>
@@ -44,6 +46,7 @@ export default async function HomePage() {
               {done} of {today.exercises.length} exercises done
             </p>
           </Link>
+          </DeletableCard>
 
           <Link href="/new" className="btn-soft self-center">
             Start a different one

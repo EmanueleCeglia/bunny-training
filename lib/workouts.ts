@@ -157,6 +157,11 @@ export async function writeExercises(
   if (update.error) throw new Error(update.error.message);
 }
 
+export async function deleteWorkout(workoutId: string): Promise<void> {
+  const result = await db().from("workouts").delete().eq("id", workoutId);
+  if (result.error) throw new Error(result.error.message);
+}
+
 export async function setExerciseDone(
   exerciseId: string,
   done: boolean,

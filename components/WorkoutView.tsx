@@ -179,17 +179,22 @@ export default function WorkoutView({
           </section>
         )
       ) : (
-        <button
-          className="btn-primary"
-          onClick={finish}
-          disabled={busy !== null || !allDone}
-        >
-          {busy === "finish"
-            ? "Wrapping your gift…"
-            : allDone
-              ? "Finish workout 🎁"
-              : `${doneIds.size}/${workout.exercises.length} done — keep going`}
-        </button>
+        <div className="flex flex-col items-center gap-2">
+          <button
+            className="btn-primary"
+            onClick={finish}
+            disabled={busy !== null || doneIds.size === 0}
+          >
+            {busy === "finish" ? "Wrapping your gift…" : "Finish workout 🎁"}
+          </button>
+          <p className="text-xs text-ink-soft">
+            {doneIds.size === 0
+              ? "Tick each exercise as you go"
+              : allDone
+                ? `All ${workout.exercises.length} done — go get your box`
+                : `${doneIds.size} of ${workout.exercises.length} done — finish whenever you like`}
+          </p>
+        </div>
       )}
 
       {(!finished || messages.length > 0) && (

@@ -1,10 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Focus, TrainingLocation } from "@/lib/types";
 
 const DURATIONS = [20, 30, 45, 60];
+const LOADING_MESSAGES = [
+  "Warming up…",
+  "Picking your exercises…",
+  "Counting the minutes…",
+  "Adding a little challenge…",
+  "Writing your cues…",
+  "Almost ready…",
+];
 const FOCUSES: { value: Focus; label: string }[] = [
   { value: "full_body", label: "Full body" },
   { value: "upper", label: "Upper" },
@@ -18,9 +26,20 @@ export default function NewWorkoutForm() {
   const [focus, setFocus] = useState<Focus>("full_body");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [messageIndex, setMessageIndex] = useState(0);
+
+  useEffect(() => {
+    if (!busy) return;
+    const timer = setInterval(
+      () => setMessageIndex((index) => (index + 1) % LOADING_MESSAGES.length),
+      1800,
+    );
+    return () => clearInterval(timer);
+  }, [busy]);
 
   async function generate() {
     setBusy(true);
+    setMessageIndex(0);
     setError(null);
     try {
       const response = await fetch("/api/workouts", {
@@ -77,9 +96,22 @@ export default function NewWorkoutForm() {
         <p className="text-center text-sm font-semibold text-bunny-600">{error}</p>
       )}
 
-      <button className="btn-primary" onClick={generate} disabled={busy}>
-        {busy ? "Writing your workout…" : "Make today's workout ✨"}
-      </button>
+      {busy ? (
+        <div
+          className="flex flex-col items-center gap-2 py-3"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="animate-hop text-4xl">🐰</span>
+          <p className="text-sm font-semibold text-bunny-600">
+            {LOADING_MESSAGES[messageIndex]}
+          </p>
+        </div>
+      ) : (
+        <button className="btn-primary" onClick={generate}>
+          Make today&apos;s workout ✨
+        </button>
+      )}
     </div>
   );
 }

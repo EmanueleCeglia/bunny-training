@@ -61,6 +61,23 @@ body {
   }
 }
 
+@keyframes bunny-hop {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+  30% {
+    transform: translateY(-14px) scaleY(1.08);
+  }
+  60% {
+    transform: translateY(0) scaleY(0.94);
+  }
+}
+
+.animate-hop {
+  animation: bunny-hop 0.7s ease-in-out infinite;
+}
+
 .animate-wiggle {
   animation: bunny-wiggle 1.1s ease-in-out infinite;
 }

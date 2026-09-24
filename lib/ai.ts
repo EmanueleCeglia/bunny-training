@@ -141,3 +141,43 @@ Keep everything she did not ask you to change. Keep the session inside the time 
 Also set "change_note" to one warm sentence telling her what you changed.`,
   );
 }
+
+export type SwapInput = {
+  location: TrainingLocation;
+  focus: Focus;
+  difficulty: number;
+  replacing: PlannedExercise;
+  keeping: string[];
+};
+
+/** Replaces a single exercise, for when a machine is taken or something hurts. */
+export async function swapExercise(
+  input: SwapInput,
+): Promise<PlannedExercise> {
+  const response = await openai().responses.parse({
+    model: OPENAI_MODEL,
+    ...reasoningOption,
+    input: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `Swap out one exercise and return only its replacement.
+Place: ${LOCATION_LABELS[input.location]}
+Session focus: ${FOCUS_LABELS[input.focus]}
+Difficulty: ${input.difficulty} of 5 (${DIFFICULTY_LABELS[input.difficulty]})
+
+Replace: ${input.replacing.name} (${input.replacing.sets} × ${input.replacing.reps})
+
+The rest of the session, which must not be duplicated:
+${input.keeping.map((name) => `- ${name}`).join("\n")}
+
+Pick a different exercise that trains the same muscles for roughly the same time, and give it a similar set and rep scheme. It must not be one of the exercises listed above.`,
+      },
+    ],
+    text: { format: zodTextFormat(PlannedExercise, "exercise") },
+  });
+
+  const exercise = response.output_parsed;
+  if (!exercise) throw new Error("Could not find a swap. Try again.");
+  return exercise;
+}

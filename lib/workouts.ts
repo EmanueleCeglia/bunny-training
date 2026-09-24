@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { todayISO } from "./date";
-import type { WorkoutPlan } from "./ai";
+import type { PlannedExercise, WorkoutPlan } from "./ai";
 import {
   FOCUS_LABELS,
   LOCATION_LABELS,
@@ -155,6 +155,38 @@ export async function writeExercises(
     .update({ title: plan.title, summary: plan.summary })
     .eq("id", workoutId);
   if (update.error) throw new Error(update.error.message);
+}
+
+export async function getExerciseContext(
+  exerciseId: string,
+): Promise<{ exercise: Exercise; workout: WorkoutWithExercises } | null> {
+  const exercise = unwrap(
+    await db().from("exercises").select("*").eq("id", exerciseId).maybeSingle(),
+  ) as Exercise | null;
+  if (!exercise) return null;
+
+  const workout = await getWorkout(exercise.workout_id);
+  return workout ? { exercise, workout } : null;
+}
+
+/** Updates in place so the row keeps its id and its spot in the list. */
+export async function replaceExercise(
+  exerciseId: string,
+  planned: PlannedExercise,
+): Promise<void> {
+  const result = await db()
+    .from("exercises")
+    .update({
+      name: planned.name,
+      sets: planned.sets,
+      reps: planned.reps,
+      rest_sec: planned.rest_sec,
+      kind: planned.kind,
+      coach_note: planned.coach_note,
+      done: false,
+    })
+    .eq("id", exerciseId);
+  if (result.error) throw new Error(result.error.message);
 }
 
 export async function deleteWorkout(workoutId: string): Promise<void> {

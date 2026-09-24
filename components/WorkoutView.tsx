@@ -46,6 +46,28 @@ export default function WorkoutView({
     });
   }
 
+  async function swap(exerciseId: string) {
+    setBusy(`swap-${exerciseId}`);
+    setError(null);
+    try {
+      const response = await fetch(`/api/exercises/${exerciseId}/swap`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not swap it");
+      setDoneIds((current) => {
+        const next = new Set(current);
+        next.delete(exerciseId);
+        return next;
+      });
+      router.refresh();
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "Could not swap it");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function revise(body: Record<string, unknown>, label: string) {
     setBusy(label);
     setError(null);
@@ -131,14 +153,16 @@ export default function WorkoutView({
       <ol className="flex flex-col gap-3">
         {workout.exercises.map((exercise, index) => {
           const checked = doneIds.has(exercise.id);
+          const swapping = busy === `swap-${exercise.id}`;
           return (
-            <li key={exercise.id}>
+            <li
+              key={exercise.id}
+              className={`card flex gap-2 transition ${checked ? "opacity-60" : ""}`}
+            >
               <button
                 type="button"
                 onClick={() => toggle(exercise.id)}
-                className={`card flex w-full gap-3 text-left transition ${
-                  checked ? "opacity-60" : ""
-                }`}
+                className="flex flex-1 gap-3 text-left"
               >
                 <span
                   className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold ${
@@ -153,7 +177,7 @@ export default function WorkoutView({
                   <span
                     className={`block font-bold text-ink ${checked ? "line-through" : ""}`}
                   >
-                    {exercise.name}
+                    {swapping ? "Finding another one…" : exercise.name}
                   </span>
                   <span className="mt-0.5 block text-sm font-semibold text-bunny-600">
                     {exercise.sets} × {exercise.reps}
@@ -166,6 +190,20 @@ export default function WorkoutView({
                   )}
                 </span>
               </button>
+
+              {!finished && (
+                <button
+                  type="button"
+                  onClick={() => swap(exercise.id)}
+                  disabled={busy !== null}
+                  aria-label={`Swap ${exercise.name} for something else`}
+                  className={`size-9 shrink-0 self-start rounded-full border border-bunny-200 text-base transition active:scale-90 disabled:opacity-40 ${
+                    swapping ? "animate-wiggle" : ""
+                  }`}
+                >
+                  🔄
+                </button>
+              )}
             </li>
           );
         })}

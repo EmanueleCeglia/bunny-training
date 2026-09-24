@@ -25,7 +25,13 @@ const WorkoutPlan = z.object({
   exercises: z.array(PlannedExercise),
 });
 
+/** The revision also explains itself, so one call does the work of two. */
+const RevisedPlan = WorkoutPlan.extend({
+  change_note: z.string(),
+});
+
 export type WorkoutPlan = z.infer<typeof WorkoutPlan>;
+export type RevisedPlan = z.infer<typeof RevisedPlan>;
 export type PlannedExercise = z.infer<typeof PlannedExercise>;
 
 const SYSTEM_PROMPT = `You are Bunny's personal trainer. Bunny is a woman who trains on her own, either at a commercial gym or at home.
@@ -44,7 +50,8 @@ Style:
 - "reps" is free text: "10-12", "30 seconds", "8 per leg".
 - "coach_note" is one short, warm, practical cue about form or effort. Address her directly. No emoji.
 - "title" is a short, cheerful name for the session, maximum four words.
-- "summary" is one sentence telling her what this session does for her.`;
+- "summary" is one sentence telling her what this session does for her.
+- When a "change_note" is asked for, it is one warm sentence under 25 words telling her what you just changed. No emoji, no lists.`;
 
 let client: OpenAI | null = null;
 function openai(): OpenAI {
@@ -52,17 +59,27 @@ function openai(): OpenAI {
   return client;
 }
 
-async function requestPlan(userPrompt: string): Promise<WorkoutPlan> {
+// Default reasoning effort pushes a single request past 35 seconds, which is
+// both a bad wait and close to the Vercel function ceiling.
+const reasoningOption = OPENAI_MODEL.startsWith("gpt-5")
+  ? { reasoning: { effort: "minimal" as const } }
+  : {};
+
+async function requestPlan<T extends WorkoutPlan>(
+  schema: Parameters<typeof zodTextFormat>[0],
+  userPrompt: string,
+): Promise<T> {
   const response = await openai().responses.parse({
     model: OPENAI_MODEL,
+    ...reasoningOption,
     input: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userPrompt },
     ],
-    text: { format: zodTextFormat(WorkoutPlan, "workout_plan") },
+    text: { format: zodTextFormat(schema, "workout_plan") },
   });
 
-  const plan = response.output_parsed;
+  const plan = response.output_parsed as T | null;
   if (!plan || plan.exercises.length === 0) {
     throw new Error("The trainer came back empty-handed. Try again.");
   }
@@ -84,7 +101,8 @@ export async function generateWorkout(
     ? `\nHer recent sessions, newest first:\n${input.recentSummaries.map((line) => `- ${line}`).join("\n")}`
     : "\nThis is her first logged session.";
 
-  return requestPlan(
+  return requestPlan<WorkoutPlan>(
+    WorkoutPlan,
     `Build today's session.
 Place: ${LOCATION_LABELS[input.location]}
 Time available: ${input.durationMin} minutes
@@ -104,8 +122,9 @@ export type ReviseInput = {
 
 export async function reviseWorkout(
   input: ReviseInput,
-): Promise<WorkoutPlan> {
-  return requestPlan(
+): Promise<RevisedPlan> {
+  return requestPlan<RevisedPlan>(
+    RevisedPlan,
     `Revise this session and return the complete updated plan.
 Place: ${LOCATION_LABELS[input.location]}
 Time available: ${input.durationMin} minutes
@@ -118,28 +137,7 @@ ${JSON.stringify(input.currentPlan, null, 2)}
 What she asked for:
 "${input.instruction}"
 
-Keep everything she did not ask you to change. Keep the session inside the time budget.`,
+Keep everything she did not ask you to change. Keep the session inside the time budget.
+Also set "change_note" to one warm sentence telling her what you changed.`,
   );
-}
-
-/** One short sentence confirming what changed, shown in the chat thread. */
-export async function describeChange(
-  instruction: string,
-  plan: WorkoutPlan,
-): Promise<string> {
-  const response = await openai().responses.create({
-    model: OPENAI_MODEL,
-    input: [
-      {
-        role: "system",
-        content:
-          "You are Bunny's trainer. In one warm sentence, under 25 words, tell her what you changed in her workout. No emoji, no lists.",
-      },
-      {
-        role: "user",
-        content: `She asked: "${instruction}"\nThe new plan is: ${plan.exercises.map((e) => e.name).join(", ")}`,
-      },
-    ],
-  });
-  return response.output_text.trim();
 }

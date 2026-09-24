@@ -33,6 +33,7 @@ export default function WorkoutView({
   const finished = workout.status === "completed";
 
   async function toggle(id: string) {
+    if (finished) return;
     const next = new Set(doneIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -94,27 +95,33 @@ export default function WorkoutView({
           {FOCUS_LABELS[workout.focus]}
         </p>
 
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-bunny-50 p-2">
-          <button
-            className="btn-soft"
-            disabled={busy !== null || workout.difficulty <= 1}
-            onClick={() => revise({ difficultyDelta: -1 }, "easier")}
-          >
-            − Easier
-          </button>
-          <span className="text-sm font-bold text-bunny-700">
-            {busy === "easier" || busy === "harder"
-              ? "Adjusting…"
-              : DIFFICULTY_LABELS[workout.difficulty]}
-          </span>
-          <button
-            className="btn-soft"
-            disabled={busy !== null || workout.difficulty >= 5}
-            onClick={() => revise({ difficultyDelta: 1 }, "harder")}
-          >
-            Harder +
-          </button>
-        </div>
+        {finished ? (
+          <p className="mt-3 text-sm font-semibold text-bunny-600">
+            Finished at {DIFFICULTY_LABELS[workout.difficulty].toLowerCase()}
+          </p>
+        ) : (
+          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-bunny-50 p-2">
+            <button
+              className="btn-soft"
+              disabled={busy !== null || workout.difficulty <= 1}
+              onClick={() => revise({ difficultyDelta: -1 }, "easier")}
+            >
+              − Easier
+            </button>
+            <span className="text-sm font-bold text-bunny-700">
+              {busy === "easier" || busy === "harder"
+                ? "Adjusting…"
+                : DIFFICULTY_LABELS[workout.difficulty]}
+            </span>
+            <button
+              className="btn-soft"
+              disabled={busy !== null || workout.difficulty >= 5}
+              onClick={() => revise({ difficultyDelta: 1 }, "harder")}
+            >
+              Harder +
+            </button>
+          </div>
+        )}
       </section>
 
       {error && (
@@ -185,8 +192,11 @@ export default function WorkoutView({
         </button>
       )}
 
+      {(!finished || messages.length > 0) && (
       <section className="card flex flex-col gap-3">
-        <h2 className="font-bold text-bunny-700">Ask for a change</h2>
+        <h2 className="font-bold text-bunny-700">
+          {finished ? "What you changed" : "Ask for a change"}
+        </h2>
 
         {messages.length > 0 && (
           <div className="flex flex-col gap-2">
@@ -205,27 +215,34 @@ export default function WorkoutView({
           </div>
         )}
 
-        <div className="flex gap-2">
+        {!finished && (
+        <form
+          className="flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (draft.trim() && !busy) {
+              void revise({ instruction: draft.trim() }, "chat");
+            }
+          }}
+        >
           <input
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && draft.trim() && !busy) {
-                void revise({ instruction: draft.trim() }, "chat");
-              }
-            }}
+            enterKeyHint="send"
             placeholder="Less machines, more free weights…"
             className="min-w-0 flex-1 rounded-full border border-bunny-200 bg-white px-4 py-3 text-sm outline-none placeholder:text-bunny-300 focus:border-bunny-400"
           />
           <button
+            type="submit"
             className="btn-soft"
             disabled={busy !== null || !draft.trim()}
-            onClick={() => revise({ instruction: draft.trim() }, "chat")}
           >
             {busy === "chat" ? "…" : "Send"}
           </button>
-        </div>
+        </form>
+        )}
       </section>
+      )}
 
       {boxPhrase && (
         <MysteryBox phrase={boxPhrase} onClose={() => setBoxPhrase(null)} />

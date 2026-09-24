@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { guardApi } from "@/lib/guard";
-import { describeChange, reviseWorkout, type WorkoutPlan } from "@/lib/ai";
+import { reviseWorkout, type WorkoutPlan } from "@/lib/ai";
 import {
   addMessage,
   getWorkout,
@@ -75,7 +75,7 @@ export async function POST(
     if (difficulty !== workout.difficulty) await setDifficulty(id, difficulty);
 
     await addMessage(id, "user", instruction);
-    await addMessage(id, "assistant", await describeChange(instruction, plan));
+    await addMessage(id, "assistant", plan.change_note);
 
     return Response.json({ ok: true });
   } catch (error) {

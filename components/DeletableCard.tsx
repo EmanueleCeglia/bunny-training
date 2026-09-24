@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
+import CoachSpinner from "./CoachSpinner";
 
 const HOLD_MS = 550;
 const MOVE_TOLERANCE_PX = 10;
@@ -87,7 +88,14 @@ export default function DeletableCard({
               disabled={deleting}
               onClick={remove}
             >
-              {deleting ? "Deleting…" : "Delete"}
+              {deleting ? (
+                <span className="flex items-center gap-2">
+                  <CoachSpinner size={18} />
+                  Deleting…
+                </span>
+              ) : (
+                "Delete"
+              )}
             </button>
           </div>
         </div>

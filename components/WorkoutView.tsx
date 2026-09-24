@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import CoachSpinner from "./CoachSpinner";
 import MysteryBox from "./MysteryBox";
 import {
   DIFFICULTY_LABELS,
@@ -130,10 +131,15 @@ export default function WorkoutView({
             >
               − Easier
             </button>
-            <span className="text-sm font-bold text-bunny-700">
-              {busy === "easier" || busy === "harder"
-                ? "Adjusting…"
-                : DIFFICULTY_LABELS[workout.difficulty]}
+            <span className="flex items-center gap-2 text-sm font-bold text-bunny-700">
+              {busy === "easier" || busy === "harder" ? (
+                <>
+                  <CoachSpinner size={20} />
+                  Adjusting…
+                </>
+              ) : (
+                DIFFICULTY_LABELS[workout.difficulty]
+              )}
             </span>
             <button
               className="btn-soft"
@@ -197,11 +203,9 @@ export default function WorkoutView({
                   onClick={() => swap(exercise.id)}
                   disabled={busy !== null}
                   aria-label={`Swap ${exercise.name} for something else`}
-                  className={`size-9 shrink-0 self-start rounded-full border border-bunny-200 text-base transition active:scale-90 disabled:opacity-40 ${
-                    swapping ? "animate-wiggle" : ""
-                  }`}
+                  className="flex size-9 shrink-0 items-center justify-center self-start rounded-full border border-bunny-200 text-base transition active:scale-90 disabled:opacity-40"
                 >
-                  🔄
+                  {swapping ? <CoachSpinner size={22} /> : "🔄"}
                 </button>
               )}
             </li>
@@ -223,7 +227,14 @@ export default function WorkoutView({
             onClick={finish}
             disabled={busy !== null || doneIds.size === 0}
           >
-            {busy === "finish" ? "Wrapping your gift…" : "Finish workout 🎁"}
+            {busy === "finish" ? (
+              <>
+                <CoachSpinner size={22} />
+                Wrapping your gift…
+              </>
+            ) : (
+              "Finish workout 🎁"
+            )}
           </button>
           <p className="text-xs text-ink-soft">
             {doneIds.size === 0
@@ -280,7 +291,7 @@ export default function WorkoutView({
             className="btn-soft"
             disabled={busy !== null || !draft.trim()}
           >
-            {busy === "chat" ? "…" : "Send"}
+            {busy === "chat" ? <CoachSpinner size={20} /> : "Send"}
           </button>
         </form>
         )}

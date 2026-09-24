@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import CoachSpinner from "./CoachSpinner";
 import type { Focus, TrainingLocation } from "@/lib/types";
 
 const DURATIONS = [20, 30, 45, 60];
@@ -102,7 +103,7 @@ export default function NewWorkoutForm() {
           role="status"
           aria-live="polite"
         >
-          <span className="animate-hop text-4xl">🐰</span>
+          <CoachSpinner size={64} />
           <p className="text-sm font-semibold text-bunny-600">
             {LOADING_MESSAGES[messageIndex]}
           </p>

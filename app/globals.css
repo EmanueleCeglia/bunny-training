@@ -61,21 +61,17 @@ body {
   }
 }
 
-@keyframes bunny-hop {
-  0%,
-  100% {
-    transform: translateY(0) scaleY(1);
+@keyframes coach-spin {
+  from {
+    transform: rotate(0deg);
   }
-  30% {
-    transform: translateY(-14px) scaleY(1.08);
-  }
-  60% {
-    transform: translateY(0) scaleY(0.94);
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.animate-hop {
-  animation: bunny-hop 0.7s ease-in-out infinite;
+.animate-coach-spin {
+  animation: coach-spin 2.2s linear infinite;
 }
 
 .animate-wiggle {

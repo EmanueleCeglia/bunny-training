@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bunny-50: #fff5f9;
+  --color-bunny-100: #ffe7f1;
+  --color-bunny-200: #ffd0e3;
+  --color-bunny-300: #ffadcf;
+  --color-bunny-400: #ff7db3;
+  --color-bunny-500: #f85497;
+  --color-bunny-600: #e23578;
+  --color-bunny-700: #bd2260;
+  --color-bunny-800: #8f1a49;
+  --color-bunny-900: #641233;
+
+  --color-ink: #452334;
+  --color-ink-soft: #8d6376;
+
+  --font-sans: var(--font-quicksand), ui-rounded, system-ui, sans-serif;
+
+  --radius-bunny: 1.75rem;
+}
+
+html,
+body {
+  background:
+    radial-gradient(
+      ellipse 80% 50% at 50% -10%,
+      var(--color-bunny-200),
+      transparent 70%
+    ),
+    var(--color-bunny-50);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-attachment: fixed;
+}
+
+@layer components {
+  .card {
+    @apply rounded-[var(--radius-bunny)] border border-bunny-100 bg-white/85 p-5 shadow-[0_10px_30px_-12px_rgba(226,53,120,0.28)] backdrop-blur;
+  }
+
+  .btn-primary {
+    @apply flex w-full items-center justify-center gap-2 rounded-full bg-bunny-500 px-6 py-4 text-base font-bold text-white shadow-[0_10px_24px_-8px_rgba(248,84,151,0.8)] transition active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100;
+  }
+
+  .btn-soft {
+    @apply flex items-center justify-center gap-2 rounded-full border border-bunny-200 bg-white px-4 py-2.5 text-sm font-semibold text-bunny-700 transition active:scale-[0.97] disabled:opacity-50;
+  }
+
+  .chip {
+    @apply flex-1 rounded-2xl border-2 border-bunny-100 bg-white px-3 py-3 text-sm font-semibold text-ink-soft transition active:scale-[0.97];
+  }
+
+  .chip-on {
+    @apply border-bunny-400 bg-bunny-100 text-bunny-700;
+  }
+}

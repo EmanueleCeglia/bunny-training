@@ -33,6 +33,17 @@ table has row level security enabled with no policies, so the database is
 unreachable from the browser even if a key leaked. Never import `lib/db.ts`
 from a Client Component.
 
+## The exercise catalog
+
+The trainer never invents exercises. It picks from the fixed list in
+`lib/catalog.ts`, which is filtered by place and focus before every request,
+and the structured-output schema only accepts ids from that filtered list.
+At home that means bodyweight plus one dumbbell of up to 10 kg.
+
+To add or remove a move, edit the list. Give it a stable `id`, a `region`, the
+`places` it works in and a `level` from 1 to 3. Don't rename an existing
+entry's `name`: revisions and swaps match saved exercises by name.
+
 ## Adding your own encouragement phrases
 
 Insert more rows into `phrases` — one sentence per row. The mystery box avoids

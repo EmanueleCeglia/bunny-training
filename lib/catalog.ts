@@ -26,6 +26,11 @@ export type CatalogExercise = {
   level: 1 | 2 | 3;
   /** Set when the home version uses her single dumbbell. */
   dumbbell?: true;
+  /**
+   * A foundation lift she should come back to often, so she can see herself
+   * get stronger at it. Everything else rotates between sessions.
+   */
+  staple?: true;
 };
 
 const BOTH: TrainingLocation[] = ["gym", "home"];
@@ -42,26 +47,26 @@ export const CATALOG: CatalogExercise[] = [
   { id: "march_in_place", name: "March in place", region: "warmup", places: HOME, kind: "cardio", level: 1 },
 
   // Upper body
-  { id: "lat_pulldown", name: "Lat pulldown", region: "upper", places: GYM, kind: "machine", level: 1 },
-  { id: "seated_cable_row", name: "Seated cable row", region: "upper", places: GYM, kind: "machine", level: 1 },
-  { id: "chest_press_machine", name: "Chest press machine", region: "upper", places: GYM, kind: "machine", level: 1 },
+  { id: "lat_pulldown", name: "Lat pulldown", region: "upper", places: GYM, kind: "machine", level: 1, staple: true },
+  { id: "seated_cable_row", name: "Seated cable row", region: "upper", places: GYM, kind: "machine", level: 1, staple: true },
+  { id: "chest_press_machine", name: "Chest press machine", region: "upper", places: GYM, kind: "machine", level: 1, staple: true },
   { id: "shoulder_press_machine", name: "Shoulder press machine", region: "upper", places: GYM, kind: "machine", level: 1 },
   { id: "assisted_pull_up", name: "Assisted pull-up", region: "upper", places: GYM, kind: "machine", level: 2 },
   { id: "triceps_pushdown", name: "Cable triceps pushdown", region: "upper", places: GYM, kind: "machine", level: 1 },
   { id: "face_pull", name: "Face pull", region: "upper", places: GYM, kind: "machine", level: 2 },
   { id: "db_bench_press", name: "Dumbbell bench press", region: "upper", places: GYM, kind: "free_weight", level: 2 },
-  { id: "db_shoulder_press", name: "Dumbbell shoulder press", region: "upper", places: GYM, kind: "free_weight", level: 2 },
+  { id: "db_shoulder_press", name: "Dumbbell shoulder press", region: "upper", places: GYM, kind: "free_weight", level: 2, staple: true },
   { id: "db_lateral_raise", name: "Dumbbell lateral raise", region: "upper", places: GYM, kind: "free_weight", level: 1 },
   { id: "db_biceps_curl", name: "Dumbbell biceps curl", region: "upper", places: GYM, kind: "free_weight", level: 1 },
-  { id: "one_arm_row", name: "One-arm dumbbell row", region: "upper", places: BOTH, kind: "free_weight", level: 1, dumbbell: true },
-  { id: "one_arm_press", name: "One-arm dumbbell shoulder press", region: "upper", places: HOME, kind: "free_weight", level: 2, dumbbell: true },
-  { id: "one_arm_floor_press", name: "One-arm dumbbell floor press", region: "upper", places: HOME, kind: "free_weight", level: 1, dumbbell: true },
+  { id: "one_arm_row", name: "One-arm dumbbell row", region: "upper", places: BOTH, kind: "free_weight", level: 1, dumbbell: true, staple: true },
+  { id: "one_arm_press", name: "One-arm dumbbell shoulder press", region: "upper", places: HOME, kind: "free_weight", level: 2, dumbbell: true, staple: true },
+  { id: "one_arm_floor_press", name: "One-arm dumbbell floor press", region: "upper", places: HOME, kind: "free_weight", level: 1, dumbbell: true, staple: true },
   { id: "one_arm_lateral_raise", name: "One-arm lateral raise", region: "upper", places: HOME, kind: "free_weight", level: 1, dumbbell: true },
   { id: "hammer_curl", name: "Hammer curl", region: "upper", places: HOME, kind: "free_weight", level: 1, dumbbell: true },
   { id: "overhead_triceps_ext", name: "Overhead triceps extension", region: "upper", places: BOTH, kind: "free_weight", level: 1, dumbbell: true },
   { id: "db_pullover", name: "Dumbbell pullover", region: "upper", places: BOTH, kind: "free_weight", level: 2, dumbbell: true },
   { id: "incline_push_up", name: "Incline push-up", region: "upper", places: BOTH, kind: "bodyweight", level: 1 },
-  { id: "knee_push_up", name: "Knee push-up", region: "upper", places: BOTH, kind: "bodyweight", level: 1 },
+  { id: "knee_push_up", name: "Knee push-up", region: "upper", places: BOTH, kind: "bodyweight", level: 1, staple: true },
   { id: "push_up", name: "Push-up", region: "upper", places: BOTH, kind: "bodyweight", level: 3 },
   { id: "bench_dip", name: "Bench dip", region: "upper", places: BOTH, kind: "bodyweight", level: 2 },
   { id: "pike_push_up", name: "Pike push-up", region: "upper", places: HOME, kind: "bodyweight", level: 3 },
@@ -80,15 +85,15 @@ export const CATALOG: CatalogExercise[] = [
   { id: "cable_woodchop", name: "Cable woodchop", region: "core", places: GYM, kind: "machine", level: 2 },
 
   // Lower body
-  { id: "leg_press", name: "Leg press", region: "lower", places: GYM, kind: "machine", level: 1 },
+  { id: "leg_press", name: "Leg press", region: "lower", places: GYM, kind: "machine", level: 1, staple: true },
   { id: "leg_extension", name: "Leg extension", region: "lower", places: GYM, kind: "machine", level: 1 },
   { id: "leg_curl", name: "Leg curl machine", region: "lower", places: GYM, kind: "machine", level: 1 },
   { id: "hip_abduction", name: "Hip abduction machine", region: "lower", places: GYM, kind: "machine", level: 1 },
   { id: "cable_kickback", name: "Cable glute kickback", region: "lower", places: GYM, kind: "machine", level: 2 },
-  { id: "hip_thrust", name: "Hip thrust", region: "lower", places: BOTH, kind: "free_weight", level: 2, dumbbell: true },
-  { id: "goblet_squat", name: "Goblet squat", region: "lower", places: BOTH, kind: "free_weight", level: 1, dumbbell: true },
+  { id: "hip_thrust", name: "Hip thrust", region: "lower", places: BOTH, kind: "free_weight", level: 2, dumbbell: true, staple: true },
+  { id: "goblet_squat", name: "Goblet squat", region: "lower", places: BOTH, kind: "free_weight", level: 1, dumbbell: true, staple: true },
   { id: "goblet_sumo_squat", name: "Goblet sumo squat", region: "lower", places: BOTH, kind: "free_weight", level: 1, dumbbell: true },
-  { id: "db_rdl", name: "Dumbbell Romanian deadlift", region: "lower", places: BOTH, kind: "free_weight", level: 2, dumbbell: true },
+  { id: "db_rdl", name: "Dumbbell Romanian deadlift", region: "lower", places: BOTH, kind: "free_weight", level: 2, dumbbell: true, staple: true },
   { id: "goblet_reverse_lunge", name: "Goblet reverse lunge", region: "lower", places: BOTH, kind: "free_weight", level: 2, dumbbell: true },
   { id: "step_up", name: "Step-up", region: "lower", places: BOTH, kind: "bodyweight", level: 2 },
   { id: "bulgarian_split_squat", name: "Bulgarian split squat", region: "lower", places: BOTH, kind: "bodyweight", level: 3 },

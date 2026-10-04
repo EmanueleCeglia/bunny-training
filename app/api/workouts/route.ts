@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { guardApi } from "@/lib/guard";
 import { generateWorkout } from "@/lib/ai";
-import { createWorkout, recentSummaries } from "@/lib/workouts";
+import {
+  createWorkout,
+  recentExercises,
+  recentSummaries,
+} from "@/lib/workouts";
 
 export const maxDuration = 60;
 
@@ -22,9 +26,14 @@ export async function POST(request: Request) {
   }
 
   try {
+    const [summaries, exercises] = await Promise.all([
+      recentSummaries(),
+      recentExercises(),
+    ]);
     const plan = await generateWorkout({
       ...parsed.data,
-      recentSummaries: await recentSummaries(),
+      recentSummaries: summaries,
+      recentExercises: exercises,
     });
     const id = await createWorkout(parsed.data, plan);
     return Response.json({ id });

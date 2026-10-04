@@ -44,6 +44,12 @@ To add or remove a move, edit the list. Give it a stable `id`, a `region`, the
 `places` it works in and a `level` from 1 to 3. Don't rename an existing
 entry's `name`: revisions and swaps match saved exercises by name.
 
+Moves marked `staple: true` are the foundation lifts (squat, deadlift, hip
+thrust, rows, presses). The trainer builds each session around them so she
+can see herself get stronger. Everything else rotates: the non-staple moves
+from her last session are left off the next session's menu, and moves from the
+two before that are tagged so the trainer favours fresh ones.
+
 Each exercise card shows a bunny doing the move in two pictures, start and
 finish. They're drawn from code, not image files: `lib/moves.ts` holds two
 poses per catalog id, made of joint angles or "reach this point" targets, and

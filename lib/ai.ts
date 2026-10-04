@@ -77,13 +77,15 @@ Hard rules:
 - Respect the requested focus. Core and cardio are seasoning, not the main course: on an upper or lower day most of the work should be in that region.
 - Difficulty is 1 to 5. Each move has a level from 1 (beginner friendly) to 3 (demanding). At difficulty 1-2 lean on level 1 moves; at 4-5 bring in level 2 and 3. Also scale with sets, reps, tempo and rest. Never add unsafe load or risky movements.
 - At home the dumbbell tops out at 10 kg, so make dumbbell moves harder with reps, slower tempo and pauses rather than weight.
-- Vary the exercises against her recent sessions so training does not get repetitive or overwork the same muscles two days running.
+- Build the main work around two or three moves marked "staple" that fit the focus. Staples are the foundations she gets stronger at by repeating them, so bringing back staples from recent sessions is good.
+- Rotate everything else. Outside the staples, use at most two moves marked as done in a recent session, and pick ones she has not done lately for the rest, warm-up and cool-down included. If the menu runs short, repeat the ones done longest ago.
+- Do not train the same muscles hard two days running.
 - Never use the same exercise twice in one session.
 
 Style:
 - "reps" is free text holding only the count or time: "10-12", "30 seconds", "8 per leg". Use "per leg" or "per side" only for moves done one side at a time. Never put equipment in it.
 - "coach_note" is one short, warm, practical cue about form or effort. Address her directly. No emoji.
-- "title" is a short, cheerful name for the session, maximum four words.
+- "title" is a short, cheerful name for the session, maximum four words, different from her recent session titles.
 - "summary" is one sentence telling her what this session does for her.
 - When a "change_note" is asked for, it is one warm sentence under 25 words telling her what you just changed. No emoji, no lists.`;
 
@@ -96,9 +98,56 @@ const REGION_ORDER: Region[] = [
   "cooldown",
 ];
 
+/** Catalog id → how many sessions ago she last did it (1 = her last session). */
+type RecentUse = Map<string, number>;
+
+function recentUse(sessions: string[][]): RecentUse {
+  const used: RecentUse = new Map();
+  sessions.forEach((names, index) => {
+    for (const name of names) {
+      const id = catalogByName(name)?.id;
+      if (id && !used.has(id)) used.set(id, index + 1);
+    }
+  });
+  return used;
+}
+
+/**
+ * The model follows "rotate" loosely, so the non-staple moves from her very last
+ * session come off the menu outright. A section keeps its moves when dropping
+ * them would leave fewer than three to choose from.
+ */
+function withoutLastSession(
+  menu: CatalogExercise[],
+  recent: RecentUse,
+): CatalogExercise[] {
+  const fresh = (exercise: CatalogExercise) =>
+    exercise.staple || recent.get(exercise.id) !== 1;
+  return menu.filter(
+    (exercise) =>
+      fresh(exercise) ||
+      menu.filter((other) => other.region === exercise.region && fresh(other))
+        .length < 3,
+  );
+}
+
+/**
+ * Listing the menu in the same order every time nudges the model towards the
+ * same first few picks, so each request gets a fresh order.
+ */
+function shuffled<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 function describeMenu(
   menu: CatalogExercise[],
   location: TrainingLocation,
+  recent: RecentUse = new Map(),
 ): string {
   return REGION_ORDER.map((region) => {
     const lines = menu
@@ -106,6 +155,10 @@ function describeMenu(
       .map((exercise) => {
         const tags = [`level ${exercise.level}`];
         if (location === "home" && exercise.dumbbell) tags.push("one dumbbell");
+        if (exercise.staple) tags.push("staple");
+        const ago = recent.get(exercise.id);
+        if (ago === 1) tags.push("done last session");
+        else if (ago) tags.push(`done ${ago} sessions ago`);
         return `- ${exercise.id}: ${exercise.name} (${tags.join(", ")})`;
       });
     return lines.length ? `${REGION_LABELS[region]}\n${lines.join("\n")}` : "";
@@ -179,13 +232,18 @@ export type GenerateInput = {
   focus: Focus;
   difficulty: number;
   recentSummaries: string[];
+  /** Exercise names from her latest sessions, newest first. */
+  recentExercises: string[][];
 };
 
 export async function generateWorkout(
   input: GenerateInput,
 ): Promise<WorkoutPlan> {
-  const menu = catalogFor(input.location, input.focus);
-  const recent = input.recentSummaries.length
+  const recent = recentUse(input.recentExercises);
+  const menu = shuffled(
+    withoutLastSession(catalogFor(input.location, input.focus), recent),
+  );
+  const history = input.recentSummaries.length
     ? `\nHer recent sessions, newest first:\n${input.recentSummaries.map((line) => `- ${line}`).join("\n")}`
     : "\nThis is her first logged session.";
 
@@ -196,10 +254,10 @@ export async function generateWorkout(
 Place: ${LOCATION_LABELS[input.location]}
 Time available: ${input.durationMin} minutes
 Focus: ${FOCUS_LABELS[input.focus]}
-Difficulty: ${input.difficulty} of 5 (${DIFFICULTY_LABELS[input.difficulty]})${recent}
+Difficulty: ${input.difficulty} of 5 (${DIFFICULTY_LABELS[input.difficulty]})${history}
 
 Today's menu:
-${describeMenu(menu, input.location)}`,
+${describeMenu(menu, input.location, recent)}`,
   );
   return toPlan(raw);
 }
@@ -275,7 +333,7 @@ export async function swapExercise(
   );
   const region = catalogByName(input.replacing.name)?.region;
   const sameRegion = available.filter((exercise) => exercise.region === region);
-  const menu = sameRegion.length ? sameRegion : available;
+  const menu = shuffled(sameRegion.length ? sameRegion : available);
   if (menu.length === 0) throw new Error("Nothing left to swap in.");
 
   const pick = await request<Pick>(

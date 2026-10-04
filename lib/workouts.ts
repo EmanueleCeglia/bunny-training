@@ -98,6 +98,20 @@ export async function recentSummaries(limit = 8): Promise<string[]> {
   );
 }
 
+/** Exercise names from her latest sessions, newest first, one list per session. */
+export async function recentExercises(sessions = 3): Promise<string[][]> {
+  const rows = unwrap(
+    await db()
+      .from("workouts")
+      .select("exercises(name)")
+      .order("workout_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(sessions),
+  ) as { exercises: { name: string }[] }[];
+
+  return rows.map((row) => row.exercises.map((exercise) => exercise.name));
+}
+
 export async function createWorkout(
   params: {
     location: TrainingLocation;

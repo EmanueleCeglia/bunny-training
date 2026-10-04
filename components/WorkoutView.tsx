@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import CoachSpinner from "./CoachSpinner";
+import MoveDemo from "./MoveDemo";
 import MysteryBox from "./MysteryBox";
 import {
   DIFFICULTY_LABELS,
@@ -163,51 +164,55 @@ export default function WorkoutView({
           return (
             <li
               key={exercise.id}
-              className={`card flex gap-2 transition ${checked ? "opacity-60" : ""}`}
+              className={`card flex flex-col gap-3 transition ${checked ? "opacity-60" : ""}`}
             >
-              <button
-                type="button"
-                onClick={() => toggle(exercise.id)}
-                className="flex flex-1 gap-3 text-left"
-              >
-                <span
-                  className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold ${
-                    checked
-                      ? "border-bunny-400 bg-bunny-400 text-white"
-                      : "border-bunny-200 text-bunny-400"
-                  }`}
-                >
-                  {checked ? "✓" : index + 1}
-                </span>
-                <span className="flex-1">
-                  <span
-                    className={`block font-bold text-ink ${checked ? "line-through" : ""}`}
-                  >
-                    {swapping ? "Finding another one…" : exercise.name}
-                  </span>
-                  <span className="mt-0.5 block text-sm font-semibold text-bunny-600">
-                    {exercise.sets} × {exercise.reps}
-                    {exercise.rest_sec ? ` · ${exercise.rest_sec}s rest` : ""}
-                  </span>
-                  {exercise.coach_note && (
-                    <span className="mt-1 block text-sm text-ink-soft">
-                      {exercise.coach_note}
-                    </span>
-                  )}
-                </span>
-              </button>
-
-              {!finished && (
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => swap(exercise.id)}
-                  disabled={busy !== null}
-                  aria-label={`Swap ${exercise.name} for something else`}
-                  className="flex size-9 shrink-0 items-center justify-center self-start rounded-full border border-bunny-200 text-base transition active:scale-90 disabled:opacity-40"
+                  onClick={() => toggle(exercise.id)}
+                  className="flex flex-1 gap-3 text-left"
                 >
-                  {swapping ? <CoachSpinner size={22} /> : "🔄"}
+                  <span
+                    className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold ${
+                      checked
+                        ? "border-bunny-400 bg-bunny-400 text-white"
+                        : "border-bunny-200 text-bunny-400"
+                    }`}
+                  >
+                    {checked ? "✓" : index + 1}
+                  </span>
+                  <span className="flex-1">
+                    <span
+                      className={`block font-bold text-ink ${checked ? "line-through" : ""}`}
+                    >
+                      {swapping ? "Finding another one…" : exercise.name}
+                    </span>
+                    <span className="mt-0.5 block text-sm font-semibold text-bunny-600">
+                      {exercise.sets} × {exercise.reps}
+                      {exercise.rest_sec ? ` · ${exercise.rest_sec}s rest` : ""}
+                    </span>
+                    {exercise.coach_note && (
+                      <span className="mt-1 block text-sm text-ink-soft">
+                        {exercise.coach_note}
+                      </span>
+                    )}
+                  </span>
                 </button>
-              )}
+
+                {!finished && (
+                  <button
+                    type="button"
+                    onClick={() => swap(exercise.id)}
+                    disabled={busy !== null}
+                    aria-label={`Swap ${exercise.name} for something else`}
+                    className="flex size-9 shrink-0 items-center justify-center self-start rounded-full border border-bunny-200 text-base transition active:scale-90 disabled:opacity-40"
+                  >
+                    {swapping ? <CoachSpinner size={22} /> : "🔄"}
+                  </button>
+                )}
+              </div>
+
+              {!checked && !swapping && <MoveDemo name={exercise.name} />}
             </li>
           );
         })}

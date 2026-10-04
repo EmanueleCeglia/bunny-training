@@ -44,6 +44,12 @@ To add or remove a move, edit the list. Give it a stable `id`, a `region`, the
 `places` it works in and a `level` from 1 to 3. Don't rename an existing
 entry's `name`: revisions and swaps match saved exercises by name.
 
+Each exercise card shows a bunny doing the move in two pictures, start and
+finish. They're drawn from code, not image files: `lib/moves.ts` holds two
+poses per catalog id, made of joint angles or "reach this point" targets, and
+`lib/figure.ts` explains the coordinates. When you add an exercise, give it a
+pair there too; without one, the card simply shows no pictures.
+
 ## Adding your own encouragement phrases
 
 Insert more rows into `phrases` — one sentence per row. The mystery box avoids

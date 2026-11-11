@@ -1,11 +1,9 @@
 import { z } from "zod";
 import { guardApi } from "@/lib/guard";
 import { generateWorkout } from "@/lib/ai";
-import {
-  createWorkout,
-  recentExercises,
-  recentSummaries,
-} from "@/lib/workouts";
+import { todayISO } from "@/lib/date";
+import { suggestNext } from "@/lib/program";
+import { createWorkout, sessionHistory } from "@/lib/workouts";
 
 export const maxDuration = 60;
 
@@ -13,7 +11,6 @@ const Body = z.object({
   location: z.enum(["gym", "home"]),
   durationMin: z.number().int().min(10).max(180),
   focus: z.enum(["full_body", "upper", "lower"]),
-  difficulty: z.number().int().min(1).max(5),
 });
 
 export async function POST(request: Request) {
@@ -26,16 +23,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const [summaries, exercises] = await Promise.all([
-      recentSummaries(),
-      recentExercises(),
-    ]);
+    const history = await sessionHistory();
+    // She never picks a difficulty: it follows how her last session went.
+    const session = { ...parsed.data, difficulty: suggestNext(history).difficulty };
     const plan = await generateWorkout({
-      ...parsed.data,
-      recentSummaries: summaries,
-      recentExercises: exercises,
+      ...session,
+      history,
+      dateISO: todayISO(),
     });
-    const id = await createWorkout(parsed.data, plan);
+    const id = await createWorkout(session, plan);
     return Response.json({ id });
   } catch (error) {
     return Response.json(

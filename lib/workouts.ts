@@ -1,15 +1,17 @@
 import { db } from "./db";
 import { todayISO } from "./date";
-import type { PlannedExercise, WorkoutPlan } from "./ai";
-import {
-  FOCUS_LABELS,
-  LOCATION_LABELS,
-  type Exercise,
-  type Focus,
-  type Message,
-  type TrainingLocation,
-  type Workout,
-  type WorkoutWithExercises,
+import type { PastSession } from "./program";
+import type { ProgressRow } from "./progress";
+import type {
+  Exercise,
+  Feel,
+  Focus,
+  Message,
+  PlannedExercise,
+  TrainingLocation,
+  Workout,
+  WorkoutPlan,
+  WorkoutWithExercises,
 } from "./types";
 
 function unwrap<T>(result: { data: T | null; error: { message: string } | null }): T {
@@ -83,33 +85,41 @@ export async function addMessage(
   );
 }
 
-export async function recentSummaries(limit = 8): Promise<string[]> {
+/** Her latest sessions, newest first, with what was in them and what she ticked. */
+export async function sessionHistory(limit = 12): Promise<PastSession[]> {
   const rows = unwrap(
     await db()
       .from("workouts")
-      .select("workout_date, focus, location, title, status")
-      .order("workout_date", { ascending: false })
-      .limit(limit),
-  ) as Pick<Workout, "workout_date" | "focus" | "location" | "title" | "status">[];
-
-  return rows.map(
-    (row) =>
-      `${row.workout_date} — ${row.title} (${FOCUS_LABELS[row.focus]}, ${LOCATION_LABELS[row.location]}, ${row.status})`,
-  );
-}
-
-/** Exercise names from her latest sessions, newest first, one list per session. */
-export async function recentExercises(sessions = 3): Promise<string[][]> {
-  const rows = unwrap(
-    await db()
-      .from("workouts")
-      .select("exercises(name)")
+      .select("*, exercises(name, sets, reps, done)")
       .order("workout_date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(sessions),
-  ) as { exercises: { name: string }[] }[];
+      .limit(limit),
+  ) as (Workout & { exercises: PastSession["exercises"] })[];
 
-  return rows.map((row) => row.exercises.map((exercise) => exercise.name));
+  return rows.map((row) => ({
+    id: row.id,
+    date: row.workout_date,
+    location: row.location,
+    focus: row.focus,
+    durationMin: row.duration_min,
+    difficulty: row.difficulty,
+    completed: row.status === "completed",
+    feel: row.feel ?? null,
+    title: row.title,
+    exercises: row.exercises,
+  }));
+}
+
+export async function progressRows(): Promise<ProgressRow[]> {
+  return unwrap(
+    await db()
+      .from("workouts")
+      .select(
+        "id, workout_date, completed_at, status, location, focus, duration_min, exercises(done)",
+      )
+      .order("workout_date", { ascending: false })
+      .limit(1000),
+  );
 }
 
 export async function createWorkout(
@@ -141,10 +151,16 @@ export async function createWorkout(
   return workout.id;
 }
 
+/** Replaces the plan. An exercise that survives the rewrite keeps its tick. */
 export async function writeExercises(
   workoutId: string,
   plan: WorkoutPlan,
 ): Promise<void> {
+  const before = unwrap(
+    await db().from("exercises").select("name, done").eq("workout_id", workoutId),
+  ) as { name: string; done: boolean }[];
+  const ticked = new Set(before.filter((e) => e.done).map((e) => e.name));
+
   const remove = await db().from("exercises").delete().eq("workout_id", workoutId);
   if (remove.error) throw new Error(remove.error.message);
 
@@ -160,6 +176,7 @@ export async function writeExercises(
         rest_sec: exercise.rest_sec,
         kind: exercise.kind,
         coach_note: exercise.coach_note,
+        done: ticked.has(exercise.name),
       })),
     );
   if (insert.error) throw new Error(insert.error.message);
@@ -203,6 +220,17 @@ export async function replaceExercise(
   if (result.error) throw new Error(result.error.message);
 }
 
+export async function setSummary(
+  workoutId: string,
+  summary: string,
+): Promise<void> {
+  const result = await db()
+    .from("workouts")
+    .update({ summary })
+    .eq("id", workoutId);
+  if (result.error) throw new Error(result.error.message);
+}
+
 export async function deleteWorkout(workoutId: string): Promise<void> {
   const result = await db().from("workouts").delete().eq("id", workoutId);
   if (result.error) throw new Error(result.error.message);
@@ -230,8 +258,28 @@ export async function setDifficulty(
   if (result.error) throw new Error(result.error.message);
 }
 
-/** Marks the session done and draws a phrase she has not seen recently. */
-export async function completeWorkout(workoutId: string): Promise<string> {
+export async function setFeel(workoutId: string, feel: Feel): Promise<void> {
+  const result = await db().from("workouts").update({ feel }).eq("id", workoutId);
+  if (result.error) throw new Error(result.error.message);
+}
+
+/**
+ * Marks the session done and draws a phrase she has not seen recently.
+ * `everything` ticks every exercise first, for when she trained without
+ * touching her phone.
+ */
+export async function completeWorkout(
+  workoutId: string,
+  everything = false,
+): Promise<string> {
+  if (everything) {
+    const tick = await db()
+      .from("exercises")
+      .update({ done: true })
+      .eq("workout_id", workoutId);
+    if (tick.error) throw new Error(tick.error.message);
+  }
+
   const existing = unwrap(
     await db()
       .from("unlocks")

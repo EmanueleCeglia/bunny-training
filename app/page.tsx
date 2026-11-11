@@ -2,14 +2,21 @@ import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import DeletableCard from "@/components/DeletableCard";
 import NewWorkoutForm from "@/components/NewWorkoutForm";
+import ProgressCard from "@/components/ProgressCard";
 import { formatDay, todayISO } from "@/lib/date";
-import { getTodayWorkout } from "@/lib/workouts";
+import { suggestNext } from "@/lib/program";
+import { computeProgress } from "@/lib/progress";
+import { getTodayWorkout, progressRows, sessionHistory } from "@/lib/workouts";
 import { FOCUS_LABELS, LOCATION_LABELS } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const today = await getTodayWorkout();
+  const [today, rows, history] = await Promise.all([
+    getTodayWorkout(),
+    progressRows(),
+    sessionHistory(),
+  ]);
   const done = today?.exercises.filter((exercise) => exercise.done).length ?? 0;
 
   return (
@@ -20,6 +27,8 @@ export default async function HomePage() {
       <h1 className="mb-5 text-3xl font-bold text-bunny-700">
         {today ? "Ready when you are" : "What are we doing today?"}
       </h1>
+
+      <ProgressCard progress={computeProgress(rows, todayISO())} />
 
       {today ? (
         <div className="flex flex-col gap-3">
@@ -53,7 +62,7 @@ export default async function HomePage() {
           </Link>
         </div>
       ) : (
-        <NewWorkoutForm />
+        <NewWorkoutForm suggested={suggestNext(history)} />
       )}
     </main>
   );

@@ -11,39 +11,35 @@ import {
   type Region,
 } from "./catalog";
 import {
+  buildSlots,
+  fitToTime,
+  prescriptionGuide,
+  rolesFor,
+  schemeFor,
+  shuffled,
+  type PastSession,
+  type Role,
+  type SessionContext,
+  type Slot,
+} from "./program";
+import {
   DIFFICULTY_LABELS,
   FOCUS_LABELS,
   LOCATION_LABELS,
-  type ExerciseKind,
   type Focus,
-  type TrainingLocation,
+  type PlannedExercise,
+  type WorkoutPlan,
 } from "./types";
-
-/** What gets stored: the trainer picks an id, the catalog supplies name and kind. */
-export type PlannedExercise = {
-  name: string;
-  sets: number;
-  reps: string;
-  rest_sec: number;
-  kind: ExerciseKind;
-  coach_note: string;
-};
-
-export type WorkoutPlan = {
-  title: string;
-  summary: string;
-  exercises: PlannedExercise[];
-};
 
 export type RevisedPlan = WorkoutPlan & { change_note: string };
 
 /**
- * The id is an enum of today's menu, so structured output makes it
+ * The id is an enum of the options on offer, so structured output makes it
  * impossible for the model to invent an exercise.
  */
-function pickSchema(menu: CatalogExercise[]) {
+function pickSchema(options: CatalogExercise[]) {
   return z.object({
-    exercise_id: z.enum(menu.map((exercise) => exercise.id)),
+    exercise_id: z.enum(options.map((exercise) => exercise.id)),
     sets: z.number().int(),
     reps: z.string(),
     rest_sec: z.number().int(),
@@ -51,147 +47,166 @@ function pickSchema(menu: CatalogExercise[]) {
   });
 }
 
-type Pick = z.infer<ReturnType<typeof pickSchema>>;
-type RawPlan = { title: string; summary: string; exercises: Pick[] };
-
-function planSchema(menu: CatalogExercise[]) {
+/** Warm-ups and stretches are timed by the app, so the model only chooses and coaches. */
+function cueSchema(options: CatalogExercise[]) {
   return z.object({
-    title: z.string(),
+    exercise_id: z.enum(options.map((exercise) => exercise.id)),
+    coach_note: z.string(),
+  });
+}
+
+type Pick = z.infer<ReturnType<typeof pickSchema>>;
+type Cue = z.infer<ReturnType<typeof cueSchema>>;
+
+const APP_TIMED: Role[] = ["warmup", "cooldown"];
+
+/**
+ * One required key per slot, each with its own options. The count, the order,
+ * the main lifts and "no exercise twice" all hold by construction. The summary
+ * comes last so it is written about a session that already exists.
+ */
+function sessionSchema(slots: Slot[]) {
+  return z.object({
+    ...Object.fromEntries(
+      slots.map((slot) => [
+        slot.key,
+        APP_TIMED.includes(slot.role)
+          ? cueSchema(slot.options)
+          : pickSchema(slot.options),
+      ]),
+    ),
     summary: z.string(),
-    exercises: z.array(pickSchema(menu)),
   });
 }
 
 function revisedSchema(menu: CatalogExercise[]) {
-  return planSchema(menu).extend({ change_note: z.string() });
+  return z.object({
+    exercises: z.array(pickSchema(menu)),
+    summary: z.string(),
+    change_note: z.string(),
+  });
 }
 
-const SYSTEM_PROMPT = `You are Bunny's personal trainer. Bunny is a woman who trains on her own, either at a commercial gym or at home. She trains for health and to feel good, not to compete.
+const SYSTEM_PROMPT = `You are the personal trainer inside a small app that was made as a gift for a woman everyone calls Bunny, and so do you. She trains alone, at a commercial gym or at home, for her health and to feel good. She is not an athlete and does not want to be talked to like one.
 
-Hard rules:
-- Only use exercises from the menu given in the request, referring to each by its id. Never invent an exercise.
-- At HOME she has her bodyweight, the floor, a chair, a wall and ONE dumbbell of up to 10 kg. Moves marked "one dumbbell" use that single dumbbell; never ask for a second one.
-- At the GYM she has the usual machines, dumbbells, cables and benches.
-- The session must realistically fit the minutes given, including warm-up, rest between sets and a short cool-down. Fewer good exercises beats a rushed list.
-- Always open with one or two warm-up moves (from Warm-up, or an easy Cardio move) and close with one or two Cool-down stretches, counted inside the time budget.
-- Respect the requested focus. Core and cardio are seasoning, not the main course: on an upper or lower day most of the work should be in that region.
-- Difficulty is 1 to 5. Each move has a level from 1 (beginner friendly) to 3 (demanding). At difficulty 1-2 lean on level 1 moves; at 4-5 bring in level 2 and 3. Also scale with sets, reps, tempo and rest. Never add unsafe load or risky movements.
-- At home the dumbbell tops out at 10 kg, so make dumbbell moves harder with reps, slower tempo and pauses rather than weight.
-- Build the main work around two or three moves marked "staple" that fit the focus. Staples are the foundations she gets stronger at by repeating them, so bringing back staples from recent sessions is good.
-- Rotate everything else. Outside the staples, use at most two moves marked as done in a recent session, and pick ones she has not done lately for the rest, warm-up and cool-down included. If the menu runs short, repeat the ones done longest ago.
-- Do not train the same muscles hard two days running.
-- Never use the same exercise twice in one session.
+The app has already decided the shape of the session: how many exercises, which main lifts, and a short list of options for every other slot. Your job is the part that needs a trainer's judgement.
 
-Style:
-- "reps" is free text holding only the count or time: "10-12", "30 seconds", "8 per leg". Use "per leg" or "per side" only for moves done one side at a time. Never put equipment in it.
-- "coach_note" is one short, warm, practical cue about form or effort. Address her directly. No emoji.
-- "title" is a short, cheerful name for the session, maximum four words, different from her recent session titles.
-- "summary" is one sentence telling her what this session does for her.
-- When a "change_note" is asked for, it is one warm sentence under 25 words telling her what you just changed. No emoji, no lists.`;
+Choosing
+- Fill every slot with exactly one exercise from that slot's own options.
+- Build a session that hangs together. Look at the main lifts first, then choose accessories that train something those lifts miss rather than repeating the same movement.
+- Warm up the joints today's lifts use. Stretch the muscles today's lifts worked.
+- When two options are equally good, take the one that is kinder to learn.
+
+Prescribing
+- Follow the numbers in "How to prescribe today". They are already adjusted to her level and to the time she has, so do not improvise different ones.
+- "reps" holds only a count or a time, such as "10-12" or "30 seconds". No equipment, no tempo, no extra words.
+- For an option marked "each side", give the count or time for one side and do not write "per side" yourself; the app adds it.
+- A main lift she has done before starts from last time's numbers: give the same, or one small step more. A small step is a couple more reps or one more set, never both.
+
+coach_note
+- One sentence of at most 16 words, said to her directly.
+- Give one cue she can feel: name a body part and what to do with it, the way a trainer standing next to her would.
+- Use everyday words for the body: "outer hips" and "back of your thighs", never anatomy terms like "gluteus medius".
+- Never write generic advice such as "keep good form", "engage your core" or "control the movement".
+- The note is about how to do the move. Do not mention sets, reps or last time in it.
+- No emoji and no exclamation marks.
+
+summary
+- One warm sentence of at most 30 words, said to her as "you". Name today's main lifts, then one specific thing in this session to look forward to, such as an accessory or how it finishes. Do not list the whole session.
+- Do not open with "Main lifts are" or "Today".
+- Never comment on her shape, her weight or how she looks.
+
+When you are revising a session
+- Change only what was asked and leave every other exercise and number exactly as it is.
+- "change_note" is one warm sentence under 25 words saying what you changed. No emoji, no lists.`;
+
+/**
+ * Left to itself the model names every session alike, and pairing a sweet word
+ * with a body part can land as a remark about her body. So titles are put
+ * together here: a word she has not had lately, plus a name for the day.
+ */
+const TITLE_WORDS = [
+  "Clover", "Honey", "Peach", "Tulip", "Velvet", "Sparkle", "Moonlight",
+  "Cherry", "Daisy", "Sunshine", "Pepper", "Comet", "Cinnamon", "Meadow",
+  "Strawberry", "Lavender", "Firefly", "Breeze", "Pearl", "Mango", "Glitter",
+  "Sunrise", "Pebble", "Blossom", "Carrot", "Starlight", "Maple", "Poppy",
+  "Willow", "Dewdrop", "Clementine", "Buttercup",
+];
+
+const TITLE_DAYS: Record<Focus, string[]> = {
+  lower: ["Leg Day", "Glute Day", "Squat Day", "Hop", "Stride"],
+  upper: ["Arm Day", "Shoulder Day", "Push & Pull", "Lift", "Reach"],
+  full_body: ["Flow", "Mix", "Circuit", "All-Rounder", "Head to Toe"],
+};
+
+const pickOne = <T,>(items: T[]): T =>
+  items[Math.floor(Math.random() * items.length)];
+
+function sessionTitle(focus: Focus, recentTitles: string[]): string {
+  const used = recentTitles.join(" ").toLowerCase();
+  const unused = TITLE_WORDS.filter((word) => !used.includes(word.toLowerCase()));
+  return `${pickOne(unused.length ? unused : TITLE_WORDS)} ${pickOne(TITLE_DAYS[focus])}`;
+}
 
 const REGION_ORDER: Region[] = [
   "warmup",
   "upper",
-  "core",
   "lower",
+  "core",
   "cardio",
   "cooldown",
 ];
 
-/** Catalog id → how many sessions ago she last did it (1 = her last session). */
-type RecentUse = Map<string, number>;
-
-function recentUse(sessions: string[][]): RecentUse {
-  const used: RecentUse = new Map();
-  sessions.forEach((names, index) => {
-    for (const name of names) {
-      const id = catalogByName(name)?.id;
-      if (id && !used.has(id)) used.set(id, index + 1);
-    }
-  });
-  return used;
+function optionLine(exercise: CatalogExercise, context: SessionContext) {
+  const tags = [
+    exercise.sides ? "each side" : null,
+    context.location === "home" && exercise.dumbbell ? "one dumbbell" : null,
+  ].filter(Boolean);
+  return `  - ${exercise.id}: ${exercise.name}${tags.length ? ` (${tags.join(", ")})` : ""}`;
 }
 
-/**
- * The model follows "rotate" loosely, so the non-staple moves from her very last
- * session come off the menu outright. A section keeps its moves when dropping
- * them would leave fewer than three to choose from.
- */
-function withoutLastSession(
-  menu: CatalogExercise[],
-  recent: RecentUse,
-): CatalogExercise[] {
-  const fresh = (exercise: CatalogExercise) =>
-    exercise.staple || recent.get(exercise.id) !== 1;
-  return menu.filter(
-    (exercise) =>
-      fresh(exercise) ||
-      menu.filter((other) => other.region === exercise.region && fresh(other))
-        .length < 3,
-  );
+function describeSlots(slots: Slot[], context: SessionContext): string {
+  return slots
+    .map(
+      (slot) =>
+        `${slot.key}: ${slot.ask}\n${slot.options.map((exercise) => optionLine(exercise, context)).join("\n")}`,
+    )
+    .join("\n");
 }
 
-/**
- * Listing the menu in the same order every time nudges the model towards the
- * same first few picks, so each request gets a fresh order.
- */
-function shuffled<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-function describeMenu(
-  menu: CatalogExercise[],
-  location: TrainingLocation,
-  recent: RecentUse = new Map(),
-): string {
+function describeMenu(menu: CatalogExercise[], context: SessionContext): string {
   return REGION_ORDER.map((region) => {
     const lines = menu
       .filter((exercise) => exercise.region === region)
-      .map((exercise) => {
-        const tags = [`level ${exercise.level}`];
-        if (location === "home" && exercise.dumbbell) tags.push("one dumbbell");
-        if (exercise.staple) tags.push("staple");
-        const ago = recent.get(exercise.id);
-        if (ago === 1) tags.push("done last session");
-        else if (ago) tags.push(`done ${ago} sessions ago`);
-        return `- ${exercise.id}: ${exercise.name} (${tags.join(", ")})`;
-      });
+      .map((exercise) => optionLine(exercise, context));
     return lines.length ? `${REGION_LABELS[region]}\n${lines.join("\n")}` : "";
   })
     .filter(Boolean)
-    .join("\n\n");
+    .join("\n");
 }
 
-function toPlanned(pick: Pick, entry: CatalogExercise): PlannedExercise {
+function toPlanned(
+  entry: CatalogExercise,
+  role: Role,
+  pick: Pick | Cue,
+  context: SessionContext,
+  strict: boolean,
+): PlannedExercise {
+  const scheme = schemeFor(
+    entry,
+    role,
+    "reps" in pick ? pick : null,
+    context,
+    strict,
+  );
   return {
     name: entry.name,
-    sets: pick.sets,
-    reps: pick.reps,
-    rest_sec: pick.rest_sec,
+    sets: scheme.sets,
+    reps: scheme.reps,
+    rest_sec: scheme.rest,
     kind: entry.kind,
-    coach_note: pick.coach_note,
+    coach_note: pick.coach_note.trim(),
   };
-}
-
-/** Resolves ids back to catalog names and drops any repeat the model slipped in. */
-function toPlan(raw: RawPlan): WorkoutPlan {
-  const seen = new Set<string>();
-  const exercises: PlannedExercise[] = [];
-  for (const pick of raw.exercises) {
-    const entry = catalogById(pick.exercise_id);
-    if (!entry || seen.has(entry.id)) continue;
-    seen.add(entry.id);
-    exercises.push(toPlanned(pick, entry));
-  }
-  if (exercises.length === 0) {
-    throw new Error("The trainer came back empty-handed. Try again.");
-  }
-  return { title: raw.title, summary: raw.summary, exercises };
 }
 
 let client: OpenAI | null = null;
@@ -226,47 +241,65 @@ async function request<T>(
   return parsed;
 }
 
-export type GenerateInput = {
-  location: TrainingLocation;
-  durationMin: number;
+function header(context: SessionContext & { focus: Focus }, timed = true): string {
+  return [
+    `- Place: ${LOCATION_LABELS[context.location]}`,
+    timed ? `- Time: ${context.durationMin} minutes` : null,
+    `- Focus: ${FOCUS_LABELS[context.focus]}`,
+    `- Difficulty: ${context.difficulty} of 5 (${DIFFICULTY_LABELS[context.difficulty]})`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export type GenerateInput = SessionContext & {
   focus: Focus;
-  difficulty: number;
-  recentSummaries: string[];
-  /** Exercise names from her latest sessions, newest first. */
-  recentExercises: string[][];
+  /** Her sessions, newest first. */
+  history: PastSession[];
+  dateISO: string;
 };
 
 export async function generateWorkout(
   input: GenerateInput,
 ): Promise<WorkoutPlan> {
-  const recent = recentUse(input.recentExercises);
-  const menu = shuffled(
-    withoutLastSession(catalogFor(input.location, input.focus), recent),
-  );
-  const history = input.recentSummaries.length
-    ? `\nHer recent sessions, newest first:\n${input.recentSummaries.map((line) => `- ${line}`).join("\n")}`
-    : "\nThis is her first logged session.";
+  const slots = buildSlots(input);
+  const titles = input.history.slice(0, 8).map((session) => session.title);
+  const feel = input.history.find((session) => session.completed)?.feel;
+  const mood =
+    feel === "easy"
+      ? "\n- Her last session felt too easy, so today is a notch harder. The summary can say she has earned it."
+      : feel === "hard"
+        ? "\n- Her last session felt too hard, so today is a notch gentler. The summary can be reassuring about that."
+        : "";
 
-  const raw = await request<RawPlan>(
-    planSchema(menu),
+  const raw = await request<Record<string, Pick | Cue> & { summary: string }>(
+    sessionSchema(slots),
     "workout_plan",
-    `Build today's session.
-Place: ${LOCATION_LABELS[input.location]}
-Time available: ${input.durationMin} minutes
-Focus: ${FOCUS_LABELS[input.focus]}
-Difficulty: ${input.difficulty} of 5 (${DIFFICULTY_LABELS[input.difficulty]})${history}
+    `Today's session
+${header(input)}${mood}
 
-Today's menu:
-${describeMenu(menu, input.location, recent)}`,
+How to prescribe today
+${prescriptionGuide(input)}
+
+Slots to fill, in workout order
+${describeSlots(slots, input)}`,
   );
-  return toPlan(raw);
+
+  const exercises = slots.map((slot) => {
+    const pick = raw[slot.key];
+    const entry = catalogById(pick.exercise_id) ?? slot.options[0];
+    return toPlanned(entry, slot.role, pick, input, true);
+  });
+
+  return {
+    title: sessionTitle(input.focus, titles),
+    summary: raw.summary.trim(),
+    exercises: fitToTime(exercises, input.durationMin),
+  };
 }
 
-export type ReviseInput = {
-  location: TrainingLocation;
-  durationMin: number;
+export type ReviseInput = SessionContext & {
   focus: Focus;
-  difficulty: number;
   currentPlan: WorkoutPlan;
   instruction: string;
 };
@@ -275,84 +308,128 @@ export async function reviseWorkout(
   input: ReviseInput,
 ): Promise<RevisedPlan> {
   const menu = catalogFor(input.location, input.focus);
-  const current = {
-    title: input.currentPlan.title,
-    summary: input.currentPlan.summary,
-    exercises: input.currentPlan.exercises.map((exercise) => ({
-      exercise_id: catalogByName(exercise.name)?.id ?? null,
-      name: exercise.name,
-      sets: exercise.sets,
-      reps: exercise.reps,
-      rest_sec: exercise.rest_sec,
-      coach_note: exercise.coach_note,
-    })),
-  };
+  const parts = rolesFor(input.currentPlan.exercises.map((e) => e.name));
+  const current = input.currentPlan.exercises.map((exercise, index) => ({
+    exercise_id: catalogByName(exercise.name)?.id ?? null,
+    name: exercise.name,
+    part: parts[index],
+    sets: exercise.sets,
+    reps: exercise.reps,
+    rest_sec: exercise.rest_sec,
+    coach_note: exercise.coach_note,
+  }));
 
-  const raw = await request<RawPlan & { change_note: string }>(
+  const raw = await request<{
+    exercises: Pick[];
+    summary: string;
+    change_note: string;
+  }>(
     revisedSchema(menu),
     "workout_plan",
     `Revise this session and return the complete updated plan.
-Place: ${LOCATION_LABELS[input.location]}
-Time available: ${input.durationMin} minutes
-Focus: ${FOCUS_LABELS[input.focus]}
-Target difficulty: ${input.difficulty} of 5 (${DIFFICULTY_LABELS[input.difficulty]})
+${header(input)}
 
-Current plan (an exercise_id of null means it is not on the menu and must be replaced with one that is):
+How to prescribe at this difficulty
+${prescriptionGuide(input)}
+
+Current plan. An exercise_id of null is not on the menu and must be replaced with one that is.
 ${JSON.stringify(current, null, 2)}
 
-What she asked for:
+What she asked for
 "${input.instruction}"
 
-Keep everything she did not ask you to change. Keep the session inside the time budget.
-If she asks for something that is not on the menu, pick the closest exercise that is.
-Also set "change_note" to one warm sentence telling her what you changed.
+Rules
+- Keep the order: warm-up, main lifts, accessories, finishers, cool-down.
+- Never use an exercise twice.
+- If she asks for something that is not on the menu, use the closest thing that is.
+- Write a fresh summary for the session as it now stands.
 
-Today's menu:
-${describeMenu(menu, input.location)}`,
+Menu
+${describeMenu(menu, input)}`,
   );
-  return { ...toPlan(raw), change_note: raw.change_note };
+
+  const entries: { entry: CatalogExercise; pick: Pick }[] = [];
+  for (const pick of raw.exercises) {
+    const entry = catalogById(pick.exercise_id);
+    if (entry && !entries.some((other) => other.entry === entry)) {
+      entries.push({ entry, pick });
+    }
+  }
+  if (entries.length === 0) {
+    throw new Error("The trainer came back empty-handed. Try again.");
+  }
+
+  const roles = rolesFor(entries.map(({ entry }) => entry.name));
+  const exercises = entries.map(({ entry, pick }, index) =>
+    toPlanned(entry, roles[index], pick, input, false),
+  );
+
+  return {
+    title: input.currentPlan.title,
+    summary: raw.summary.trim(),
+    exercises: fitToTime(exercises, input.durationMin),
+    change_note: raw.change_note.trim(),
+  };
 }
 
-export type SwapInput = {
-  location: TrainingLocation;
+export type SwapInput = SessionContext & {
   focus: Focus;
-  difficulty: number;
-  replacing: PlannedExercise;
-  keeping: string[];
+  /** The whole session, in order. */
+  session: PlannedExercise[];
+  /** Position of the exercise to replace. */
+  index: number;
 };
 
 /** Replaces a single exercise, for when a machine is taken or something hurts. */
 export async function swapExercise(
   input: SwapInput,
-): Promise<PlannedExercise> {
-  const taken = new Set(
-    [...input.keeping, input.replacing.name].map((name) => name.toLowerCase()),
-  );
+): Promise<{ exercise: PlannedExercise; summary: string }> {
+  const replacing = input.session[input.index];
+  const taken = new Set(input.session.map((e) => e.name.toLowerCase()));
   const available = catalogFor(input.location, input.focus).filter(
     (exercise) => !taken.has(exercise.name.toLowerCase()),
   );
-  const region = catalogByName(input.replacing.name)?.region;
-  const sameRegion = available.filter((exercise) => exercise.region === region);
-  const menu = shuffled(sameRegion.length ? sameRegion : available);
+  const original = catalogByName(replacing.name);
+  const samePattern = available.filter(
+    (exercise) => original?.pattern && exercise.pattern === original.pattern,
+  );
+  const sameRegion = available.filter(
+    (exercise) =>
+      exercise.region === original?.region && exercise.area === original?.area,
+  );
+  const menu = shuffled(
+    [samePattern, sameRegion, available].find((list) => list.length > 0) ?? [],
+  );
   if (menu.length === 0) throw new Error("Nothing left to swap in.");
 
-  const pick = await request<Pick>(
-    pickSchema(menu),
+  const session = input.session
+    .map((exercise, index) =>
+      index === input.index ? "- (the replacement)" : `- ${exercise.name}`,
+    )
+    .join("\n");
+
+  const pick = await request<Pick & { summary: string }>(
+    pickSchema(menu).extend({ summary: z.string() }),
     "exercise",
-    `Swap out one exercise and return only its replacement.
-Place: ${LOCATION_LABELS[input.location]}
-Session focus: ${FOCUS_LABELS[input.focus]}
-Difficulty: ${input.difficulty} of 5 (${DIFFICULTY_LABELS[input.difficulty]})
+    `Swap out one exercise and return its replacement.
+${header(input, false)}
 
-Replace: ${input.replacing.name} (${input.replacing.sets} × ${input.replacing.reps})
+Replace: ${replacing.name} (${replacing.sets} × ${replacing.reps}, rest ${replacing.rest_sec}s)
 
-Pick the exercise from the menu that best trains the same muscles for roughly the same time, and give it a similar set and rep scheme.
+Pick the option that trains the same muscles most closely, and give it the same sets and rest. Keep the reps the same too, unless the new move is timed.
 
-Menu:
-${describeMenu(menu, input.location)}`,
+Then write a fresh summary for the session with the replacement in it. The session, in order:
+${session}
+
+Options
+${menu.map((exercise) => optionLine(exercise, input)).join("\n")}`,
   );
 
   const entry = catalogById(pick.exercise_id);
   if (!entry) throw new Error("Could not find a swap. Try again.");
-  return toPlanned(pick, entry);
+  const role = rolesFor(input.session.map((e) => e.name))[input.index];
+  return {
+    exercise: toPlanned(entry, role, pick, input, true),
+    summary: pick.summary.trim(),
+  };
 }

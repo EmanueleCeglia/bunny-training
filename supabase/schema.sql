@@ -16,7 +16,9 @@ create table if not exists workouts (
   summary       text,
   status        text        not null default 'planned' check (status in ('planned', 'completed')),
   completed_at  timestamptz,
-  notes         text
+  notes         text,
+  -- Her one-tap answer after finishing; it sets where the next session starts.
+  feel          text        check (feel in ('easy', 'right', 'hard'))
 );
 
 create index if not exists workouts_date_idx on workouts (workout_date desc, created_at desc);

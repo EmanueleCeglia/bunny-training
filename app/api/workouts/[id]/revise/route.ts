@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { guardApi } from "@/lib/guard";
-import { reviseWorkout, type WorkoutPlan } from "@/lib/ai";
+import { reviseWorkout } from "@/lib/ai";
+import type { WorkoutPlan } from "@/lib/types";
 import {
   addMessage,
   getWorkout,
@@ -16,8 +17,19 @@ const Body = z.object({
   difficultyDelta: z.union([z.literal(1), z.literal(-1)]).optional(),
 });
 
-const HARDER = "Make it harder.";
-const EASIER = "Make it easier.";
+/** What she sees in the chat, and what the trainer is actually told to do. */
+const STEPS = {
+  harder: {
+    shown: "Make it harder.",
+    brief:
+      "Make the whole session one notch harder. Re-prescribe every exercise for the new difficulty using the guide, keep the same main lifts, and swap at most one accessory for a more demanding option.",
+  },
+  easier: {
+    shown: "Make it easier.",
+    brief:
+      "Make the whole session one notch easier. Re-prescribe every exercise for the new difficulty using the guide, keep the same main lifts, and swap at most one accessory for a gentler option.",
+  },
+};
 
 export async function POST(
   request: NextRequest,
@@ -45,8 +57,9 @@ export async function POST(
     );
   }
 
-  const instruction =
-    parsed.data.instruction ?? (delta === 1 ? HARDER : EASIER);
+  const step = delta === 1 ? STEPS.harder : STEPS.easier;
+  const shown = parsed.data.instruction ?? step.shown;
+  const instruction = parsed.data.instruction ?? step.brief;
 
   const currentPlan: WorkoutPlan = {
     title: workout.title,
@@ -74,7 +87,7 @@ export async function POST(
     await writeExercises(id, plan);
     if (difficulty !== workout.difficulty) await setDifficulty(id, difficulty);
 
-    await addMessage(id, "user", instruction);
+    await addMessage(id, "user", shown);
     await addMessage(id, "assistant", plan.change_note);
 
     return Response.json({ ok: true });

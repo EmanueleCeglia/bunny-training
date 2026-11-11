@@ -1,7 +1,11 @@
 import type { NextRequest } from "next/server";
 import { guardApi } from "@/lib/guard";
 import { swapExercise } from "@/lib/ai";
-import { getExerciseContext, replaceExercise } from "@/lib/workouts";
+import {
+  getExerciseContext,
+  replaceExercise,
+  setSummary,
+} from "@/lib/workouts";
 
 export const maxDuration = 60;
 
@@ -16,27 +20,27 @@ export async function POST(
   const found = await getExerciseContext(id);
   if (!found) return Response.json({ error: "Not found" }, { status: 404 });
 
-  const { exercise, workout } = found;
+  const { workout } = found;
 
   try {
-    const replacement = await swapExercise({
+    const { exercise, summary } = await swapExercise({
       location: workout.location,
       focus: workout.focus,
       difficulty: workout.difficulty,
-      replacing: {
+      durationMin: workout.duration_min,
+      session: workout.exercises.map((exercise) => ({
         name: exercise.name,
         sets: exercise.sets ?? 3,
         reps: exercise.reps ?? "10",
         rest_sec: exercise.rest_sec ?? 60,
         kind: exercise.kind ?? "bodyweight",
         coach_note: exercise.coach_note ?? "",
-      },
-      keeping: workout.exercises
-        .filter((other) => other.id !== id)
-        .map((other) => other.name),
+      })),
+      index: workout.exercises.findIndex((exercise) => exercise.id === id),
     });
 
-    await replaceExercise(id, replacement);
+    await replaceExercise(id, exercise);
+    await setSummary(workout.id, summary);
     return Response.json({ ok: true });
   } catch (error) {
     return Response.json(

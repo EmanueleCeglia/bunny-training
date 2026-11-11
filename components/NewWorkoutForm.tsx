@@ -20,11 +20,18 @@ const FOCUSES: { value: Focus; label: string }[] = [
   { value: "lower", label: "Lower" },
 ];
 
-export default function NewWorkoutForm() {
+export default function NewWorkoutForm({
+  suggested,
+}: {
+  /** Where she left off, and the focus that has waited longest for a turn. */
+  suggested: { location: TrainingLocation; durationMin: number; focus: Focus };
+}) {
   const router = useRouter();
-  const [location, setLocation] = useState<TrainingLocation>("gym");
-  const [durationMin, setDurationMin] = useState(45);
-  const [focus, setFocus] = useState<Focus>("full_body");
+  const [location, setLocation] = useState(suggested.location);
+  const [durationMin, setDurationMin] = useState(
+    DURATIONS.includes(suggested.durationMin) ? suggested.durationMin : 45,
+  );
+  const [focus, setFocus] = useState(suggested.focus);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [messageIndex, setMessageIndex] = useState(0);
@@ -46,7 +53,7 @@ export default function NewWorkoutForm() {
       const response = await fetch("/api/workouts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ location, durationMin, focus, difficulty: 3 }),
+        body: JSON.stringify({ location, durationMin, focus }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Something went wrong");
@@ -89,6 +96,7 @@ export default function NewWorkoutForm() {
             onClick={() => setFocus(option.value)}
           >
             {option.label}
+            {option.value === suggested.focus && " ✨"}
           </Chip>
         ))}
       </Group>

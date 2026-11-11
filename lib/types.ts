@@ -7,6 +7,25 @@ export type ExerciseKind =
   | "cardio"
   | "stretch";
 
+/** Her one-tap answer to "how did that feel?" after a session. */
+export type Feel = "easy" | "right" | "hard";
+
+/** An exercise as the trainer prescribes it, before it is saved. */
+export type PlannedExercise = {
+  name: string;
+  sets: number;
+  reps: string;
+  rest_sec: number;
+  kind: ExerciseKind;
+  coach_note: string;
+};
+
+export type WorkoutPlan = {
+  title: string;
+  summary: string;
+  exercises: PlannedExercise[];
+};
+
 export type Exercise = {
   id: string;
   workout_id: string;
@@ -33,6 +52,7 @@ export type Workout = {
   status: "planned" | "completed";
   completed_at: string | null;
   notes: string | null;
+  feel?: Feel | null;
 };
 
 export type WorkoutWithExercises = Workout & { exercises: Exercise[] };

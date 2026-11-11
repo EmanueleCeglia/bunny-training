@@ -70,6 +70,30 @@ body {
   }
 }
 
+@keyframes bunny-fall {
+  to {
+    transform: translateY(110vh) rotate(260deg);
+  }
+}
+
+@keyframes bunny-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-4deg);
+  }
+  50% {
+    transform: translateY(-3px) rotate(4deg);
+  }
+}
+
+.animate-fall {
+  animation: bunny-fall 2.6s linear both;
+}
+
+.animate-bob {
+  animation: bunny-bob 1.6s ease-in-out infinite;
+}
+
 .animate-coach-spin {
   animation: coach-spin 2.2s linear infinite;
 }
